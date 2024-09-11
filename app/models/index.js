@@ -20,7 +20,8 @@ db.Sequelize = Sequelize;
 db.sequelize = sequelize;
 
 // define model example
-// db.user = require("../models/User")(sequelize, Sequelize);
+db.User = require("../models/User")(sequelize, Sequelize);
+db.Attack = require('../models/Attack')(sequelize, Sequelize);  
 
 // relation example
 // relation between role and user
@@ -34,5 +35,6 @@ db.sequelize = sequelize;
 //   foreignKey: "roleId",
 //   as: "role",
 // });
+
 
 module.exports = db;

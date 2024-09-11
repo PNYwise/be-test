@@ -1,5 +1,6 @@
 const { QueryTypes } = require('sequelize');
 const db = require("../models");
+const Attack = db.Attack;
 // const Model = db.Model;
 // const { Op } = require("sequelize");
 
@@ -13,8 +14,6 @@ exports.refactoreMe1 = (req, res) => {
         indices[index].push(value);
       });
     });
-
-    console.log(indices)
 
     const totalIndex = indices.map(subArray => {
       const sum = subArray.reduce((acc, curr) => acc + curr, 0);
@@ -75,10 +74,96 @@ exports.refactoreMe2 = (req, res) => {
   });
 };
 
-exports.callmeWebSocket = (req, res) => {
-  // do something
+
+
+// Function to save data to PostgreSQL
+const saveDataToDatabase = async (data) => {
+  try {
+    // Bulk create records
+    const flattenedData = data.flat();
+    const records = flattenedData.map(item => ({
+      sourceCountry: item.sourceCountry,
+      destinationCountry: item.destinationCountry,
+      millisecond: item.millisecond,
+      type: item.type,
+      weight: item.weight,
+      attackTime: new Date(item.attackTime),
+    }));
+
+    await Attack.bulkCreate(records, { ignoreDuplicates: true });
+  } catch (error) {
+    console.error('Error saving data to database:', error);
+  }
 };
 
-exports.getData = (req, res) => {
-  // do something
+exports.callmeWebSocket = (ws, req) => {
+  // Function to fetch data from the API
+  const fetchData = async () => {
+    try {
+      const response = await fetch('https://livethreatmap.radware.com/api/map/attacks?limit=10');
+      const data = await response.json();
+      await saveDataToDatabase(data);
+
+      ws.send(JSON.stringify(data));
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      ws.send(JSON.stringify({ error: 'Error fetching data' }));
+    }
+  };
+  fetchData();
+
+  // Set interval every 3 minutes
+  const interval = setInterval(fetchData, 180000);
+
+  // Clear the interval when the WebSocket closed
+  ws.on('close', () => {
+    clearInterval(interval);
+  });
+};
+
+exports.getData = (req, res, next) => {
+  const destinationQuery = `
+    SELECT "destinationCountry", COUNT(*) as total
+    FROM attacks
+    GROUP BY "destinationCountry"
+    ORDER BY total DESC
+  `;
+
+  const sourceQuery = `
+    SELECT "sourceCountry", COUNT(*) as total
+    FROM attacks
+    GROUP BY "sourceCountry"
+    ORDER BY total DESC
+  `;
+
+  Promise.all([
+    db.sequelize.query(destinationQuery, { type: QueryTypes.SELECT }),
+    db.sequelize.query(sourceQuery, { type: QueryTypes.SELECT }),
+  ])
+    .then(([destinationResults, sourceResults]) => {
+      const responseData = {
+        success: true,
+        statusCode: 200,
+        data: {
+          label: [
+            ...destinationResults.map(row => row.destinationCountry),
+            ...sourceResults.map(row => row.sourceCountry)
+          ],
+          total: [
+            ...destinationResults.map(row => row.total),
+            ...sourceResults.map(row => row.total)
+          ]
+        }
+      };
+
+      res.locals.cacheData = responseData;
+
+      // Send response
+      res.status(200).json(responseData);
+      next()
+    })
+    .catch(error => {
+      console.error('Error fetching data:', error);
+      res.status(500).json({ success: false, statusCode: 500, message: 'Internal Server Error' });
+    });
 };  
