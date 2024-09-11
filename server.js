@@ -4,7 +4,6 @@ const cors = require("cors");
 const dotenv = require("dotenv");
 dotenv.config();
 const app = express();
-
 const corsOptions = {
   origin: ["http://localhost:8080"],
 };
@@ -17,11 +16,14 @@ app.use(bodyParser.json());
 // parse requests of content-type - application/x-www-form-urlencoded
 app.use(bodyParser.urlencoded({ extended: true }));
 
+//ws
+var expressWs = require('express-ws')(app);
+
+
 // database
 const db = require("./app/models");
 
-// db.sequelize.sync();
-
+db.sequelize.sync();
 // never enable the code below in production
 // force: true will drop the table if it already exists
 // db.sequelize.sync({ force: true }).then(() => {
@@ -34,11 +36,19 @@ app.get("/", (req, res) => {
   res.json({ message: "Hello" });
 });
 
+
+app.ws('/ws', (ws, req) => {
+  ws.on('message', function (msg) {
+    ws.send(msg);
+  });
+});
+
+
 // routes
 require("./app/routes/exampleRoutes")(app);
 
 // set port, listen for requests
 const PORT = process.env.PORT || 7878;
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server is running on port ${PORT}.`);
 });

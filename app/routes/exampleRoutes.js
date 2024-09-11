@@ -1,5 +1,5 @@
-const { exampleMiddleware } = require("../middleware");
 const exampleController = require("../controllers/exampleController");
+const cacheMiddleware = require("../middleware/cacheMiddleware");
 
 module.exports = (app) => {
   app.use((req, res, next) => {
@@ -22,6 +22,13 @@ module.exports = (app) => {
     // [exampleMiddleware.exampleMiddlewareFunction],
     exampleController.refactoreMe2
   );
+  router.ws('/callme', exampleController.callmeWebSocket);
 
+  router.get(
+    "/get-data",
+    cacheMiddleware.cacheMiddlewareFunction,
+    exampleController.getData,
+    cacheMiddleware.setCacheMiddlewareFunction(),
+  );
   app.use("/api/data", router);
 };
