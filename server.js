@@ -20,7 +20,7 @@ app.use(bodyParser.urlencoded({ extended: true }));
 // database
 const db = require("./app/models");
 
-db.sequelize.sync();
+// db.sequelize.sync();
 
 // never enable the code below in production
 // force: true will drop the table if it already exists
@@ -35,7 +35,7 @@ app.get("/", (req, res) => {
 });
 
 // routes
-// require("./app/routes/exaole.routes")(app);
+require("./app/routes/exampleRoutes")(app);
 
 // set port, listen for requests
 const PORT = process.env.PORT || 7878;
