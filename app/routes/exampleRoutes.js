@@ -1,5 +1,5 @@
 const exampleController = require("../controllers/exampleController");
-const cacheMiddleware = require("../middleware/cacheMiddleware");
+const { authMiddleware, roleMiddleware, cacheMiddleware, wsAuthMiddleware } = require("../middleware");
 
 module.exports = (app) => {
   app.use((req, res, next) => {
@@ -14,18 +14,28 @@ module.exports = (app) => {
 
   router.get(
     "/refactore-me-1",
-    // [exampleMiddleware.exampleMiddlewareFunction],
+    authMiddleware,
+    roleMiddleware(["user", "admin"]),
     exampleController.refactoreMe1
   );
   router.post(
     "/refactore-me-2",
-    // [exampleMiddleware.exampleMiddlewareFunction],
+    authMiddleware,
+    roleMiddleware(["user", "admin"]),
     exampleController.refactoreMe2
   );
-  router.ws('/callme', exampleController.callmeWebSocket);
+  router.ws('/callme',
+    (ws, req, next) => {
+      wsAuthMiddleware(ws, req, () => {
+        exampleController.callmeWebSocket(ws, req);
+      });
+    }
+  );
 
   router.get(
     "/get-data",
+    authMiddleware,
+    roleMiddleware(["admin"]),
     cacheMiddleware.cacheMiddlewareFunction,
     exampleController.getData,
     cacheMiddleware.setCacheMiddlewareFunction(),
