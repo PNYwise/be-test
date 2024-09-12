@@ -1,5 +1,7 @@
 const { QueryTypes } = require('sequelize');
 const db = require("../models");
+const axios = require('axios');
+
 const Attack = db.Attack;
 // const Model = db.Model;
 // const { Op } = require("sequelize");
@@ -96,12 +98,13 @@ const saveDataToDatabase = async (data) => {
   }
 };
 
+
+
 exports.callmeWebSocket = (ws, req) => {
-  // Function to fetch data from the API
   const fetchData = async () => {
     try {
-      const response = await fetch('https://livethreatmap.radware.com/api/map/attacks?limit=10');
-      const data = await response.json();
+      const response = await axios.get('https://livethreatmap.radware.com/api/map/attacks?limit=10');
+      const data = response.data;
       await saveDataToDatabase(data);
 
       ws.send(JSON.stringify(data));
@@ -112,10 +115,8 @@ exports.callmeWebSocket = (ws, req) => {
   };
   fetchData();
 
-  // Set interval every 3 minutes
   const interval = setInterval(fetchData, 180000);
 
-  // Clear the interval when the WebSocket closed
   ws.on('close', () => {
     clearInterval(interval);
   });

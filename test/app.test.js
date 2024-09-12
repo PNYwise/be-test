@@ -1,9 +1,15 @@
 const request = require('supertest');
 const express = require('express');
 const db = require('../app/models');
+const axios = require('axios')
+const WebSocket = require('ws');
 
+
+
+jest.mock('axios');
 // Mock the database query
-db.sequelize.query = jest.fn();
+db.sequelize.query = jest.fn()
+db.Attack.bulkCreate = jest.fn()
 
 const authMiddleware = jest.fn((req, res, next) => next());
 const roleMiddleware = jest.fn((roles) => (req, res, next) => next());
@@ -16,6 +22,8 @@ const exampleController = require('../app/controllers/exampleController');
 const createServer = () => {
     const app = express();
     app.use(express.json());
+    require('express-ws')(app);
+
 
     app.get(
         '/refactore-me-1',
@@ -41,10 +49,36 @@ const createServer = () => {
     );
 
 
+    // WebSocket route
+    app.ws('/callme', (ws, req, next) => {
+        exampleController.callmeWebSocket(ws, req);
+    });
+
+
     return app;
 };
 
-const testApp = createServer();
+let testApp;
+let port = 3001;
+
+beforeAll((done) => {
+    const app = createServer();
+    testApp = app.listen(port, '0.0.0.0', () => {
+        console.log(`Test server running on http://0.0.0.0:${port}`);
+        done();
+    });
+});
+
+afterAll((done) => {
+    testApp.close(() => {
+        console.log('Test server stopped');
+        done();
+    });
+});
+
+
+
+
 
 describe('GET /refactore-me-1', () => {
     it('should return 200 with calculated averages divided by 10', async () => {
@@ -135,6 +169,64 @@ describe('GET /get-data', () => {
                 label: ['USA', 'Canada', 'Mexico', 'Brazil'],
                 total: [100, 50, 70, 30]
             }
+        });
+    });
+});
+
+describe('WebSocket /callme', () => {
+
+
+    let ws;
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+        axios.get = jest.fn();
+    });
+
+    afterEach(() => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.close();
+        }
+    });
+
+    it('should fetch data and send it to WebSocket clients', (done) => {
+        const mockData = [
+            {
+                sourceCountry: 'USA',
+                destinationCountry: 'UK',
+                millisecond: 123456,
+                type: 'attack',
+                weight: 500,
+                attackTime: '2023-09-12T10:00:00Z',
+            },
+        ];
+
+        // Mock axios.get to return the mock data
+        axios.get.mockResolvedValueOnce({ data: mockData });
+
+        ws = new WebSocket(`ws://localhost:${port}/callme`);
+        ws.on('open', () => {
+            // Test the first message sent to the WebSocket client
+            ws.on('message', (message) => {
+                const data = JSON.parse(message);
+
+                expect(data).toEqual(mockData);
+
+                // Ensure data is saved to the database
+                expect(db.Attack.bulkCreate).toHaveBeenCalledWith(
+                    mockData.map(item => ({
+                        sourceCountry: item.sourceCountry,
+                        destinationCountry: item.destinationCountry,
+                        millisecond: item.millisecond,
+                        type: item.type,
+                        weight: item.weight,
+                        attackTime: new Date(item.attackTime),
+                    })),
+                    { ignoreDuplicates: true }
+                );
+
+                done();
+            });
         });
     });
 });
